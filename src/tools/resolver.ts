@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { access, constants, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -55,6 +56,24 @@ const readConfigValue = async <T>(
 };
 
 /**
+ * Resolves an API key value. Supports the same formats as models.json:
+ * - "!command" — executes the command and uses its stdout
+ * - "ENV_VAR" — uses the value of the named environment variable
+ * - literal string — used directly
+ * @param value The raw value from auth.json
+ * @returns The resolved API key
+ */
+const resolveKey = (value: string): string => {
+  if (value.startsWith("!")) {
+    return execSync(value.slice(1), { encoding: "utf-8" }).trim();
+  }
+  if (process.env[value]) {
+    return process.env[value]!;
+  }
+  return value;
+};
+
+/**
  * Reads API key from Pi's auth file
  * @returns The API key, as defined by the auth.json file
  */
@@ -63,7 +82,8 @@ export const resolveApiKey = async (): Promise<string> => {
   if (!(await fileExists(authPath))) return API_KEY_PLACEHOLDER;
 
   const cfg = await readConfigValue<AuthFile>(authPath, PROVIDER_ID);
-  return cfg?.key ?? API_KEY_PLACEHOLDER;
+  const raw = cfg?.key ?? API_KEY_PLACEHOLDER;
+  return resolveKey(raw);
 };
 
 /**

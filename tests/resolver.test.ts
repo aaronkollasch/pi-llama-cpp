@@ -154,4 +154,42 @@ describe("API key resolution", () => {
 
     expect(result).toBe("test-api-key");
   });
+
+  it("should execute a shell command when key starts with !", async () => {
+    vi.doMock("node:fs/promises", () => ({
+      access: vi.fn().mockResolvedValue(undefined),
+      constants: { F_OK: 0 },
+      readFile: vi
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify({ [PROVIDER_ID]: { key: "!echo secret-key" } }),
+        ),
+    }));
+
+    const { resolveApiKey } = await import("../src/tools/resolver");
+    const result = await resolveApiKey();
+
+    expect(result).toBe("secret-key");
+  });
+
+  it("should use environment variable when key is an env var name", async () => {
+    vi.doMock("node:fs/promises", () => ({
+      access: vi.fn().mockResolvedValue(undefined),
+      constants: { F_OK: 0 },
+      readFile: vi
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify({ [PROVIDER_ID]: { key: "MY_CUSTOM_KEY" } }),
+        ),
+    }));
+
+    process.env.MY_CUSTOM_KEY = "env-secret-key";
+
+    const { resolveApiKey } = await import("../src/tools/resolver");
+    const result = await resolveApiKey();
+
+    expect(result).toBe("env-secret-key");
+
+    delete process.env.MY_CUSTOM_KEY;
+  });
 });
