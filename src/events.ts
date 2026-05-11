@@ -2,6 +2,7 @@ import { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { PROVIDER_ID } from "./constants";
 import { ModelSelectEvent } from "./interfaces/events";
 import { listModels } from "./tools/retriever";
+import { Status } from "./enums/status";
 
 /**
  * Reacts to a new model event triggered by Pi
@@ -17,6 +18,9 @@ export const onModelSelect = async (
   const models = await listModels();
   const model = models.find((m) => m.id === event.model.id);
   if (!model) return;
+
+  const status = await model.getStatus();
+  if (status !== Status.UNLOADED) return;
 
   ctx.ui.notify(`>> Loading ${model.id}...`, "info");
   await model.load();
