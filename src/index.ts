@@ -1,13 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_LLAMA_SERVER_URL, PROVIDER_NAME } from "./constants";
+import { PROVIDER_NAME } from "./constants";
 import { onModelSelect } from "./events";
 import { lazyLoadProvider } from "./tools/provider";
 import { modelsCommand, notFoundCommand } from "./commands/models";
 
 export default function (pi: ExtensionAPI) {
-  // Register stub provider synchronously so pi shows the prompt instantly.
-  // Model listing happens in the background and updates the provider when ready.
-  lazyLoadProvider(pi, DEFAULT_LLAMA_SERVER_URL + "/v1");
+  // Fetch models in the background and register the real provider once ready.
+  // No stub is registered — Pi shows no models until the fetch completes,
+  // but this avoids the caching bug where Pi keeps the stub's empty model list.
+  lazyLoadProvider(pi);
 
   // /models command fetches models on-demand, so it always works
   // whether the server was up at startup or came up later.

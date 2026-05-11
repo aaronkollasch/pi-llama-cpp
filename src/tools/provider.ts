@@ -44,26 +44,20 @@ export const registerLlamaCppProvider = async (
 };
 
 /**
- * Registers a stub provider synchronously, then fetches models in the
- * background. This avoids blocking pi's startup on the /models HTTP call.
+ * Fetches models in the background and registers the real provider once
+ * ready. No stub provider is registered — Pi will show no models until the
+ * fetch completes, but this avoids the caching bug where Pi keeps the stub's
+ * empty model list forever.
  *
  * @param pi The Pi extension API
- * @param fallbackBaseUrl URL to use if the resolver can't find a config
  */
-export const lazyLoadProvider = (
-  pi: ExtensionAPI,
-  fallbackBaseUrl: string,
-): void => {
-  // 1. Register stub immediately — no await, no blocking I/O
-  pi.registerProvider(PROVIDER_ID, {
-    name: PROVIDER_NAME,
-    baseUrl: fallbackBaseUrl,
-    api: "openai-completions",
-    apiKey: "sk-placeholder",
-    models: [],
-  });
+export const lazyLoadProvider = (pi: ExtensionAPI): void => {
 
-  // 2. Fetch models in the background (fire-and-forget)
+  // Fetch models asynchronously and register the real provider once ready.
+  // We intentionally skip the stub-provider pattern: registering a stub
+  // first and then calling registerProvider again causes Pi to cache the
+  // stub's empty model list and never pick up the real models, leading to
+  // "Connection error" on the first prompt with a stale/wrong model ID.
   (async () => {
     try {
       const baseUrl = `${await resolveUrl(process.cwd())}/v1`;
@@ -78,7 +72,8 @@ export const lazyLoadProvider = (
         models: models.map((m) => m.toProviderConfig()),
       });
     } catch {
-      // Server unreachable — keep the stub provider (no models)
+      // Server unreachable — no ui from ExtensionAPI, so we rely on
+      // onModelSelect to show an error when the user tries to use the provider.
     }
   })();
 };
