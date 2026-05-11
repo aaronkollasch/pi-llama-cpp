@@ -58,7 +58,7 @@ export abstract class BaseModel {
   async getCapabilities(): Promise<["text"] | ["image"]> {
     try {
       const { modalities } = await rpc<PropsEndpoint>(
-        `/props?model=${this.id}`,
+        `/props?model=${this.id}&autoload=false`,
       );
 
       return modalities.vision ? ["image"] : ["text"];
@@ -75,7 +75,7 @@ export abstract class BaseModel {
   public async getStatus(): Promise<Status> {
     try {
       const { is_sleeping, error } = await rpc<PropsEndpoint>(
-        `/props?model=${this.id}`,
+        `/props?model=${this.id}&autoload=false`,
       );
 
       if (is_sleeping) return Status.SLEEPING;
@@ -98,7 +98,7 @@ export abstract class BaseModel {
   async getContextSize(): Promise<number> {
     try {
       const { default_generation_settings } = await rpc<PropsEndpoint>(
-        `/props?model=${this.id}`,
+        `/props?model=${this.id}&autoload=false`,
       );
       const { n_ctx } = default_generation_settings;
       return n_ctx;
