@@ -1,22 +1,8 @@
-import { HealthEndpoint } from "../interfaces/endpoints/health";
 import { ModelsEndpoint } from "../interfaces/endpoints/models";
 import { BaseModel } from "../models/baseModel";
 import { RouterModel } from "../models/routerModel";
 import { SingleModel } from "../models/singleModel";
 import { resolveApiKey, resolveUrl } from "./resolver";
-
-/**
- * Detects if the server is ready
- * @returns True if it's ready to work
- */
-export const isServerReady = async (): Promise<boolean> => {
-  try {
-    const { status } = await rpc<HealthEndpoint>("/health");
-    return status === "ok";
-  } catch {
-    return false;
-  }
-};
 
 /**
  * Makes an HTTP request to the llama-server and returns the parsed JSON response
@@ -28,7 +14,7 @@ export const isServerReady = async (): Promise<boolean> => {
 export const rpc = async <T>(
   endpoint: string,
   body?: Record<string, unknown>,
-) => {
+): Promise<T> => {
   const base = await resolveUrl(process.cwd());
   const url = `${base}${endpoint}`;
 
@@ -46,6 +32,13 @@ export const rpc = async <T>(
       ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
     },
   });
+
+  if (!res.ok) {
+    const bodyText = await res.text();
+    throw new Error(
+      `llama-server ${endpoint} returned ${res.status}: ${bodyText}`,
+    );
+  }
 
   const response: T = await res.json();
   return response;

@@ -15,7 +15,14 @@ export const onModelSelect = async (
 ) => {
   if (event.model.provider !== PROVIDER_ID) return;
 
-  const models = await listModels();
+  let models: Awaited<ReturnType<typeof listModels>>;
+  try {
+    models = await listModels();
+  } catch {
+    ctx.ui.notify("Llama.cpp server unreachable", "error");
+    return;
+  }
+
   const model = models.find((m) => m.id === event.model.id);
   if (!model) return;
 

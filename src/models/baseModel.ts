@@ -19,6 +19,26 @@ import { rpc } from "../tools/retriever";
 export abstract class BaseModel {
   constructor(protected readonly model: DataProperty) {}
 
+  private cachedProps: Record<string, unknown> | undefined;
+
+  /**
+   * Fetches and caches /props data for this model.
+   * Cached across calls to avoid redundant network requests.
+   */
+  protected async getProps(): Promise<Record<string, unknown>> {
+    if (this.cachedProps) return this.cachedProps;
+
+    try {
+      const props = await rpc<PropsEndpoint>(
+        `/props?model=${this.id}&autoload=false`,
+      );
+      this.cachedProps = props;
+      return props;
+    } catch {
+      return {};
+    }
+  }
+
   protected readonly statusMapper: Record<string, Status> = {
     loaded: Status.LOADED,
     loading: Status.LOADING,
@@ -56,15 +76,9 @@ export abstract class BaseModel {
    * @returns An array of capabilities, as expected by Pi
    */
   async getCapabilities(): Promise<["text"] | ["image"]> {
-    try {
-      const { modalities } = await rpc<PropsEndpoint>(
-        `/props?model=${this.id}&autoload=false`,
-      );
-
-      return modalities.vision ? ["image"] : ["text"];
-    } catch {
-      return ["text"];
-    }
+    const props = await this.getProps();
+    const modalities = props.modalities as { vision?: boolean } | undefined;
+    return modalities?.vision ? ["image"] : ["text"];
   }
 
   /**
@@ -96,15 +110,11 @@ export abstract class BaseModel {
    * @returns The detected context size
    */
   async getContextSize(): Promise<number> {
-    try {
-      const { default_generation_settings } = await rpc<PropsEndpoint>(
-        `/props?model=${this.id}&autoload=false`,
-      );
-      const { n_ctx } = default_generation_settings;
-      return n_ctx;
-    } catch {
-      return DEFAULT_CTX;
-    }
+    const props = await this.getProps();
+    const settings = props.default_generation_settings as {
+      n_ctx?: number;
+    } | undefined;
+    return settings?.n_ctx ?? DEFAULT_CTX;
   }
 
   /**
@@ -135,22 +145,22 @@ export abstract class BaseModel {
   }
 
   /**
-   * Converts the llama-server model into a configuration object used by Pi
+   * Converts the llama-server model into a configuration object used by Pi.
+   * Uses safe defaults without making eager /props network calls —
+   * actual capabilities and context size are fetched lazily on first use.
    *
    * @returns A Pi configuration object
    */
-  async toProviderConfig(): Promise<ProviderModelConfig> {
-    const response = {
+  toProviderConfig(): ProviderModelConfig {
+    return {
       id: this.id,
       name: this.name,
       reasoning: this.reasoning,
-      input: await this.getCapabilities(),
-      contextWindow: await this.getContextSize(),
+      input: ["text"] as ["text"],
+      contextWindow: DEFAULT_CTX,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       maxTokens: MAX_TOKENS,
     };
-
-    return response;
   }
 
   /**
